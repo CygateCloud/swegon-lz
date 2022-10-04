@@ -1,0 +1,125 @@
+# Landing zone deployment pipeline
+
+trigger:
+- none
+
+variables:
+- name: TenantId
+  value: ''
+
+- name: Tenant
+  value: "prod"
+
+- name: ScriptDir
+  value: pwsh
+
+- name: ServiceConnection
+  value: 
+
+- name: enrollmentAccountProd
+  value: 
+
+- name: enrollmentAccountNonProd
+  value: 
+
+- name: targetManagementGroup
+  ${{ if eq( parameters.ConnectivityType, 'Corp') }}:
+    value: 'preem-landingzones-corp'
+  ${{ if eq( parameters.ConnectivityType, 'Online') }}:
+    value: 'preem-landingzones-online'
+
+parameters:
+
+- name: AppName
+  displayName: App Name infix
+
+- name: ConnectivityType
+  displayName: Connectivity Type 
+  type: string
+  values:
+  - Corp
+  - Online
+
+- name: environmentProd
+  displayName: Create a production subscription
+  type: boolean
+  default: true
+
+- name: environmentNonProd
+  displayName: Create a non-production subscription
+  type: boolean
+  default: false
+
+- name: parSpokeNetworkAddressPrefix
+  displayName: Spoke Vnet Address prefix
+  type: string
+
+- name: parSpokeSubnetNetworkAddressPrefix
+  displayName: Spoke Vnet default subnet Address prefix
+  type: string
+
+- name: parRegion
+  displayName: Spoke resources region
+  type: string
+  default: 'northeurope'
+
+stages:
+- stage: Subscription_Onboarding_Prod
+  displayName:  Prod
+  condition: eq('${{ parameters.environmentProd }}', 'true')
+  variables: 
+    environmentSuffix: prod
+
+  jobs:
+  - job: OnboardingLZ
+    displayName: Onboarding ${{ parameters.AppName }}
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+            - task: AzurePowerShell@5
+              displayName: 'Onboarding Subscriptions'
+              inputs:
+                azureSubscription: $(ServiceConnection)
+                ScriptType: 'FilePath'
+                ScriptPath: '$(System.DefaultWorkingDirectory)/$(ScriptDir)/deploy.ps1'
+                scriptArguments: >
+                    -AppName ${{ parameters.AppName }}
+                    -parRegion ${{ parameters.parRegion }}
+                    -parSpokeNetworkAddressPrefix ${{ parameters.parSpokeNetworkAddressPrefix }}
+                    -parSpokeSubnetNetworkAddressPrefix ${{ parameters.parSpokeSubnetNetworkAddressPrefix }}
+                    -enrollmentAccount ${{ variables.enrollmentAccountProd }}
+                    -tenant ${{ variables.Tenant }}
+                    -targetManagementGroup ${{ variables.targetManagementGroup }}
+                    -environment ${{ variables.environmentSuffix }}
+                preferredAzurePowerShellVersion: '6.3.0'
+                pwsh: true
+
+- stage: Subscription_Onboarding_Nonprod
+  displayName:  Non-prod
+  condition: eq('${{ parameters.environmentNonProd }}', 'true')
+  variables: 
+    environmentSuffix: nonprod
+
+  jobs:
+  - job: OnboardingLZ
+    displayName: Onboarding ${{ parameters.AppName }}
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+            - task: AzurePowerShell@5
+              displayName: 'Onboarding Subscriptions'
+              inputs:
+                azureSubscription: $(ServiceConnection)
+                ScriptType: 'FilePath'
+                ScriptPath: '$(System.DefaultWorkingDirectory)/$(ScriptDir)/deploy.ps1'
+                scriptArguments: >
+                    -AppName ${{ parameters.AppName }}
+                    -parRegion ${{ parameters.parRegion }}
+                    -parSpokeNetworkAddressPrefix ${{ parameters.parSpokeNetworkAddressPrefix }}
+                    -parSpokeSubnetNetworkAddressPrefix ${{ parameters.parSpokeSubnetNetworkAddressPrefix }}
+                    -enrollmentAccount ${{ variables.enrollmentAccountNonProd }}
+                    -tenant ${{ variables.Tenant }}
+                    -targetManagementGroup ${{ variables.targetManagementGroup }}
+                    -environment ${{ variables.environmentSuffix }}
+                preferredAzurePowerShellVersion: '6.3.0'
+                pwsh: true
